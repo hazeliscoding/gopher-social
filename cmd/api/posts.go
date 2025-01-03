@@ -69,7 +69,37 @@ func (app *application) getPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	comments, err := app.store.Comments.GetByPostID(ctx, post.ID)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	post.Comments = comments
+
 	if err := writeJSON(w, http.StatusOK, post); err != nil {
 		app.internalServerError(w, r, err)
 	}
+}
+
+func (app *application) createCommentHandler(w http.ResponseWriter, r *http.Request) {
+	idParam := chi.URLParam(r, "postID")
+	id, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	var payload store.Comment
+	if err := readJSON(w, r, &payload); err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(payload); err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	payload.PostID = id
 }
