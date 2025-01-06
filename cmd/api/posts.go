@@ -103,3 +103,26 @@ func (app *application) createCommentHandler(w http.ResponseWriter, r *http.Requ
 
 	payload.PostID = id
 }
+
+func (app *application) deletePostHandler(w http.ResponseWriter, r *http.Request) {
+	idParam := chi.URLParam(r, "postID")
+	id, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	ctx := r.Context()
+
+	if err := app.store.Posts.Delete(ctx, id); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.internalServerError(w, r, err)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
