@@ -150,26 +150,26 @@ func (s *PostStore) Update(ctx context.Context, post *Post) error {
 	return nil
 }
 
-func (s *PostStore) GetUserFeed(context.Context, int64) ([]PostWithMetadata, error) {
+func (s *PostStore) GetUserFeed(ctx context.Context, userID int64, fq PaginatedFeedQuery) ([]PostWithMetadata, error) {
 	query := `
-		SELECT p.id, p.user_id, p.title, p.content, p.created_at, p.version, p.tags,
+		SELECT 
+			p.id, p.user_id, p.title, p.content, p.created_at, p.version, p.tags,
 			u.username,
-			COUNT(c.id) as comments_count
+			COUNT(c.id) AS comments_count
 		FROM posts p
-		LEFT JOIN comments c ON p.id = c.post_id
-		LEFT join users u on p.user_id = u.id
-		JOIN followers f on f.follower_id = p.user_id or p.user_id = $1
-		WHERE f.user_id = $1 or p.user_id = $1
+		LEFT JOIN comments c ON c.post_id = p.id
+		LEFT JOIN users u ON p.user_id = u.id
+		JOIN followers f ON f.follower_id = p.user_id OR p.user_id = $1
+		WHERE f.user_id = $1 OR p.user_id = $1
 		GROUP BY p.id, u.username
-		ORDER BY p.created_at DESC
+		ORDER BY p.created_at ` + fq.Sort + `
+		LIMIT $2 OFFSET $3
 	`
-
-	ctx := context.Background()
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
 
-	rows, err := s.db.QueryContext(ctx, query, 42)
+	rows, err := s.db.QueryContext(ctx, query, userID, fq.Limit, fq.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,6 @@ func (s *PostStore) GetUserFeed(context.Context, int64) ([]PostWithMetadata, err
 			&p.User.Username,
 			&p.CommentsCount,
 		)
-
 		if err != nil {
 			return nil, err
 		}
